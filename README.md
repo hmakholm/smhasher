@@ -1,3 +1,15 @@
+> ## Fork information
+>
+> This (https://github.com/hmakholm/smhasher) fork of SMhasher
+> is the home of a new test to discover hash collisions with
+> small Hamming distance; see
+> [src/LongNeighborTest.md](https://github.com/hmakholm/smhasher/tree/master/src/LongNeighborTest.md).
+>
+> The plan is to contribute this upstream (but given that the upstream
+> repo has a numer of open pull requests, yet no commits since the
+> "woo, we're on Github" commit three years ago, holding one's breath
+> on that is probably not to be recommended).
+
 ## [SMHasher](https://github.com/aappleby/smhasher/wiki) is a test suite designed to test the distribution, collision, and performance properties of non-cryptographic hash functions.
 
 This is the home for the [MurmurHash](https://github.com/aappleby/smhasher/tree/master/src) family of hash functions along with the [SMHasher](https://github.com/aappleby/smhasher/tree/master/src) test suite used to verify them. SMHasher is released under the MIT license. All MurmurHash versions are public domain software, and the author disclaims all copyright to their code.
