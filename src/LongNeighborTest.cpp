@@ -267,9 +267,9 @@ namespace {
       need *= 3;
       if( hashCapacity < need ) {
         do hashCapacity <<= 1; while( hashCapacity < need );
-        delete hashTable;
+        delete[] hashTable;
         hashTable = new PackedDelta[hashCapacity];
-        delete fullHashes;
+        delete[] fullHashes;
         fullHashes = new uint8_t[hashCapacity*hashbytes];
       }
       size_t capacityUsed = hashCapacity ;
