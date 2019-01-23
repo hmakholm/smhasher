@@ -5,11 +5,11 @@ in January 2019, while working at [Semmle Ltd](https://www.semmle.com).
 
 As of this writing Semmle has not yet officially allowed it to be released
 under a permissive license, so beware of possible legal trouble if you
-use it. (I'm going to seek permission once the work is done!)
+use it. (I'm currently researching how to get such official permission).
 
 ## Overview
 
-This test uses a meet-in-the middle approach to look for hash collisions
+This test uses a meet-in-the-middle approach to look for hash collisions
 between messages with low Hamming distances.
 
 Developing the test was prompted by the discovery that
@@ -23,25 +23,25 @@ Because Spooky has an unusually large block size of 96 bytes (=768 bits),
 and it uses a completely different algorithm for messages shorter than 2
 blocks, this problem only shows up for messages of length 281 to 287 bytes,
 and then again from 377 to 383 bytes, etc. Notably, messages of any "nice"
-length are not affectes, which means that we need to test for all possible
+length are not affected, which means that we need to test for all possible
 message lenghts.
 
 ## Method
 
 We generate a lot of "base" messages of lengths between 10 and 300 bytes.
 For each length there is one base message consisting entirely of zero bits,
-one that consists entirely of ones, and three random base messages.
+one that consists entirely of ones, and three with pseudorandom bits.
 Each of these base messages are processed separately.
 
-With the default parameters we derive about 3 million variants of the
+With the default parameters, we derive about 3 million variants of the
 base message; then we look for hash collisions between those variants.
-There's a variant for each 1-bit flip anywhere in the mssage, one for
+There's a variant for each 1-bit flip anywhere in the message, one for
 each combination of 2 bit-flips within the last 2048 bits of the message,
 and one for each combination of 3 flips in the last 160 bits of the message.
 There are also some variants that consist of appending some zero bytes
 to the message and then flipping 2 bits. (Appending zeroes often has the
-same effect as bit flips, given how many hashes include a length counter
-in their final padding).
+same effect as bit flips, due to the way many hashes include a length
+counter in their final padding).
 
 If we find any collision between variants of a base message, that base
 is declared "bad". At the end we compare the number of bad bases found with
@@ -50,7 +50,7 @@ the number we would expect with an ideal ("truly random") hash function.
 ## Interpreting the results
 
 The test tries to adapt its reporting to odd hash sizes. SMHasher
-only supports sizes that are powers of twos, which leads to three
+currently only supports sizes that are powers of two, which leads to three
 rather distinct reporting regimes:
 
 ### 128-bit hashes or longer
@@ -79,8 +79,7 @@ investigate how it managed to collide, and see if there is a discernible
 reason that can be fixed somehow.
 
 Collisions with particularly simple deltas may still cause a 64-bit hash
-to fail with only a single bad base. (This is based on the "surprise score"
-described below).
+to fail with only a single bad base. (See "horrible collisions" below).
 
 ### 32-bit hashes
 
@@ -95,12 +94,19 @@ their bits are far from the _end_ of the message.
 
 There are still enough variants that even with an ideal hash, a few hundred
 bad bases is expected. If the _actual_ number of bad bases is more than 1.3
-times the theoretical valie, the hash fails the test.
+times the theoretical value, the hash fails the test.
 
 The 1.3 factor is more or less pulled out of a hat. It causes the
 `MurmurOAAT` and `Murmur2A` hashes to fail the test just barely --
 they seem to have particular problems with inputs that are mostly
 zeroes. The newer version `Murmur3A` passes the test nicely.
+
+_TODO:_ Rather than a fixed factor, we really ought to compute a p-value
+for the observed number of bads and compare that to some chosen
+significance level. (To make this feasible we'd probably have to assume
+that the number of bads follow a binomial distribution, even though very
+short bases actually have a lower chance of being bad because some deltas
+won't fit).
 
 ## Surprise score
 
@@ -116,11 +122,12 @@ number of bits flipped, but where those bits are closer to the end of
 the message.)
 
 **Warning:**
-Because of the selection bias inherent in displaying the collision with
-the _highest_ surprise score, the `p` **should not** be interpreted as
-anything like how likely it ought to be for a hash function to have a
-collision as bad as this. Completely fine 32-bit hashes will routinely
-find a collision with a surprise score in the hundreds.
+The surprise score is relative to _one particular_ base message. Because of
+the selection bias inherent in displaying the collision with the _highest_
+surprise score, the `p` **should not** be interpreted as the likelihood of
+a hash function to have a collision as bad as this anywhere. Completely
+fine 32-bit hashes will routinely find bases that have a collision with
+a surprise score in the hundreds.
 
 ### Horrible collisions
 
@@ -128,15 +135,15 @@ That being said, if the test sees a surprise score of 10<sup>12</sup> of
 more, it is considered a "horrible collision". These are ones we don't
 ever expect to come across for any good hash function. (Note that an
 "indistinguishably random" hash function will _have_ bases that have
-horrible collisions, but those bases ought to be so rare that we never
-expect to come across one during any realistic test run).
+horrible collisions, but those bases ought to be so rare that we should
+never randomly find one during any realistic test run).
 
 A horrible collision will be printed out immediately when it is found
 (unless an even more horrible one has already been printed), and will in
 and of itself cause the hash to fail the test.
 
 A collision with a 128-bit hash is always horrible. (Or more precisely,
-the test would not reach a delta that could produce a non-horrible score
+the test would not reach any delta that could produce a non-horrible score
 until after hashing several hundred terabytes of data).
 
 It is impossible for a collision with a 32-bit hash to be horrible
@@ -154,9 +161,9 @@ If you know the input block size of the hash you're testing you can save
 time by decreasing `MAXMSGBYTES` so it corresponds to just a few (say, three)
 input blocks.
 
-The three `MAXRANGE_xDELTA` constants control how many _bits_ from the
-end of the message will be considered for constructing 1-, 2- or 3-bit
-deltas.
+The three `MAXRANGE_xDELTA` constants control how long a distance in _bits_
+from the end of the message will be considered for constructing 1-, 2- or
+3-bit deltas.
 
 The default value for `MAXRANGE_1DELTA` is effectively infinity.
 
@@ -173,20 +180,25 @@ you scale `MAXMSGBYTES` back. More than 1024 will (a) take forever and
 You can set `STORE_3BIT_HASHES` to `false` to conserve memory at the expense
 of not discovering collisions between two 3-bit variants. This is generally
 only useful if you are on a 32-bit machine, or if you have jacked
-`MAXRANGE_3DELTA` up way high and have the patience enough to compute a
-trillion hashes but not the RAM to store them.
+`MAXRANGE_3DELTA` up way high and have the patience to compute
+billions of hashes per base but not the RAM to store them.
 
 If you have even more time to spare you can increase `BASES_PER_LENGTH`
 to try more random base messages for each message lenght. But beware that
 this may sometimes mask problems, such as the particular problems Murmur2A
 has with all-zeroes bases.
 
-## Detaching from SMHasher
+Note that the random base messages are _deterministic_, using the message
+length as a seed. If you want to improve coverage by running the test several
+times, you'll need to modify the code that generates random bases.
+
+## Detaching the test from SMHasher
 
 At the time of this writing, the code is only weakly coupled to SMHasher.
 You can grab `LongNeighborTest.{cpp,h}` and `Birthday.{cpp.h}` (which
-contains a helper function for computing very small birthday-collision
-probabilities in a numerically stable way), and be on your way.
+contains a helper function for computing both small and large
+birthday-collision probabilities in a numerically stable way),
+and be on your way.
 
 The main code depends on SMHasher's `Random.h` for creating base messages,
 but it should be easy to substitute another PRNG.
@@ -195,6 +207,8 @@ but it should be easy to substitute another PRNG.
 
 I recommend you use version 1 rather than version 2. It is marginally
 slower but does not appear to have any problems with small-delta collisions.
+(I've ran the test with `MAXRANGE_3DELTA=800` on the most relevant message
+lengths without finding and).
 
-(At your option you may use the change to _short_ hashes from version 2;
-that seems to be harmless and possibly improve the hash quality).
+At your option you may use the change to _short_ hashes from version 2;
+that seems to be harmless and possibly improve the hash quality.
